@@ -37,7 +37,7 @@ class Nginx
      */
     function install()
     {
-        $this->ubuntu->ensureInstalled('nginx-core');
+        $this->ubuntu->ensureInstalled('nginx');
 
         $this->installConfiguration();
         $this->installServer();
