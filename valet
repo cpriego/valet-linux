@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if ! [ -x "$(command -v php)" ]; then
+        echo "Please install PHP.";
+        exit 1;
+fi
+
 SOURCE="${BASH_SOURCE[0]}"
 SUDOCMDS="uninstall install start restart stop unsecure secure"
 HOMEPATH=$HOME
