@@ -35,6 +35,16 @@ class DnsMasq
     }
 
     /**
+     * Restart the DNS process.
+     *
+     * @return void
+     */
+    public function restart()
+    {
+        $this->pm->dnsmasqRestart($this->sm);
+    }
+
+    /**
      * Install and configure DnsMasq.
      *
      * @return void
@@ -44,7 +54,7 @@ class DnsMasq
         $this->dnsmasqSetup();
         $this->fixResolved();
         $this->createCustomConfigFile('dev');
-        $this->pm->dnsmasqRestart($this->sm);
+        $this->restart();
     }
 
     /**
@@ -92,7 +102,7 @@ class DnsMasq
     {
         $this->fixResolved();
         $this->createCustomConfigFile($newDomain);
-        $this->pm->dnsmasqRestart($this->sm);
+        $this->restart();
     }
 
     /**
@@ -106,6 +116,6 @@ class DnsMasq
         $this->files->unlink($this->nmConfigPath);
         $this->files->restore($this->resolvedConfigPath);
 
-        $this->pm->dnsmasqRestart($this->sm);
+        $this->restart();
     }
 }
