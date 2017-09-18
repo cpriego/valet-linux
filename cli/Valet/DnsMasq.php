@@ -43,7 +43,7 @@ class DnsMasq
     {
         $this->dnsmasqSetup();
         $this->fixResolved();
-        $this->createCustomConfigFile('dev');
+        $this->createCustomConfigFile('test');
         $this->pm->dnsmasqRestart($this->sm);
     }
 
