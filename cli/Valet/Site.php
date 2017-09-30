@@ -104,14 +104,33 @@ class Site
     {
         $config = $this->config->read();
 
+        list($httpPort, $httpsPort) = $this->portSuffixes();
+
         return collect($this->files->scanDir($path))->mapWithKeys(function ($site) use ($path) {
             return [$site => $this->files->readLink($path . '/' . $site)];
-        })->map(function ($path, $site) use ($certs, $config) {
+        })->map(function ($path, $site) use ($certs, $config, $httpPort, $httpsPort) {
             $secured = $certs->has($site);
-            $url = ($secured ? 'https' : 'http') . '://' . $site . '.' . $config['domain'];
+
+            $url = ($secured ? 'https' : 'http') . '://' . $site . '.' . $config['domain'] . ($secured ? $httpsPort : $httpPort);
 
             return [$site, $secured ? ' X' : '', $url, $path];
         });
+    }
+
+    /**
+     * Return port suffixes
+     *
+     * @return array
+     */
+    public function portSuffixes()
+    {
+        $httpPort = $this->config->get('port', 80);
+        $httpPort = ($httpPort == 80) ? '' : ':' . $httpPort;
+
+        $httpsPort = $this->config->get('https_port', 443);
+        $httpsPort = ($httpsPort == 443) ? '' : ':' . $httpsPort;
+
+        return [$httpPort, $httpsPort];
     }
 
     /**
