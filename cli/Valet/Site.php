@@ -104,7 +104,8 @@ class Site
     {
         $config = $this->config->read();
 
-        list($httpPort, $httpsPort) = $this->portSuffixes();
+        $httpPort = $this->httpSuffix();
+        $httpsPort = $this->httpsSuffix();
 
         return collect($this->files->scanDir($path))->mapWithKeys(function ($site) use ($path) {
             return [$site => $this->files->readLink($path . '/' . $site)];
@@ -118,19 +119,27 @@ class Site
     }
 
     /**
-     * Return port suffixes
+     * Return http port suffix
      *
-     * @return array
+     * @return string
      */
-    public function portSuffixes()
+    public function httpSuffix()
     {
-        $httpPort = $this->config->get('port', 80);
-        $httpPort = ($httpPort == 80) ? '' : ':' . $httpPort;
+        $port = $this->config->get('port', 80);
 
-        $httpsPort = $this->config->get('https_port', 443);
-        $httpsPort = ($httpsPort == 443) ? '' : ':' . $httpsPort;
+        return ($port == 80) ? '' : ':' . $port;
+    }
 
-        return [$httpPort, $httpsPort];
+    /**
+     * Return https port suffix
+     *
+     * @return string
+     */
+    public function httpsSuffix()
+    {
+        $port = $this->config->get('https_port', 443);
+
+        return ($port == 443) ? '' : ':' . $port;
     }
 
     /**
@@ -313,8 +322,8 @@ class Site
         $path = $this->certificatesPath();
 
         return str_replace(
-            ['VALET_HOME_PATH', 'VALET_SERVER_PATH', 'VALET_SITE', 'VALET_CERT', 'VALET_KEY', 'VALET_HTTP_PORT', 'VALET_HTTPS_PORT'],
-            [VALET_HOME_PATH, VALET_SERVER_PATH, $url, $path . '/' . $url . '.crt', $path . '/' . $url . '.key', $this->config->get('port', 80), $this->config->get('https_port', 443)],
+            ['VALET_HOME_PATH', 'VALET_SERVER_PATH', 'VALET_SITE', 'VALET_CERT', 'VALET_KEY', 'VALET_HTTP_PORT', 'VALET_HTTPS_PORT', 'VALET_REDIRECT_PORT'],
+            [VALET_HOME_PATH, VALET_SERVER_PATH, $url, $path . '/' . $url . '.crt', $path . '/' . $url . '.key', $this->config->get('port', 80), $this->config->get('https_port', 443), $this->httpsSuffix()],
             $this->files->get(__DIR__ . '/../stubs/secure.valet.conf')
         );
     }
