@@ -104,6 +104,19 @@ if (is_dir(VALET_HOME_PATH)) {
     })->descriptions('Get or set the port number used for Valet sites');
 
     /**
+     * Determine if the site is secured or not
+     */
+    $app->command('secured [site]', function ($site) {
+        if (Site::secured()->contains($site)) {
+            info("{$site} is secured.");
+            return 1;
+        }
+
+        info("{$site} is not secured.");
+        return 0;
+    })->descriptions('Determine if the site is secured or not');
+
+    /**
      * Add the current working directory to the paths configuration.
      */
     $app->command('park [path]', function ($path = null) {
