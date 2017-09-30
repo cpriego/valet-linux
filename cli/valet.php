@@ -90,11 +90,12 @@ if (is_dir(VALET_HOME_PATH)) {
 
         if ($https) {
             Configuration::updateKey('https_port', $port);
-            Site::regenerateSecuredSitesConfig();
         }else{
             Nginx::updatePort($port);
             Configuration::updateKey('port', $port);
         }
+
+        Site::regenerateSecuredSitesConfig();
 
         Nginx::restart();
         PhpFpm::restart();
