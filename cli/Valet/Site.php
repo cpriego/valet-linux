@@ -166,14 +166,14 @@ class Site
     /**
      * Get all of the URLs that are currently secured.
      *
-     * @return array
+     * @return \Illuminate\Support\Collection
      */
     public function secured()
     {
         return collect($this->files->scandir($this->certificatesPath()))
             ->map(function ($file) {
                 return str_replace(['.key', '.csr', '.crt', '.conf'], '', $file);
-            })->unique()->values()->all();
+            })->unique()->values();
     }
 
     /**
@@ -190,10 +190,7 @@ class Site
 
         $this->createCertificate($url);
 
-        $this->files->putAsUser(
-            VALET_HOME_PATH . '/Nginx/' . $url,
-            $this->buildSecureNginxServer($url)
-        );
+        $this->createSecureNginxServer($url);
     }
 
     /**
@@ -276,6 +273,17 @@ class Site
     }
 
     /**
+     * @param $url
+     */
+    public function createSecureNginxServer($url)
+    {
+        $this->files->putAsUser(
+            VALET_HOME_PATH . '/Nginx/' . $url,
+            $this->buildSecureNginxServer($url)
+        );
+    }
+
+    /**
      * Build the TLS secured Nginx server for the given URL.
      *
      * @param  string $url
@@ -286,8 +294,8 @@ class Site
         $path = $this->certificatesPath();
 
         return str_replace(
-            ['VALET_HOME_PATH', 'VALET_SERVER_PATH', 'VALET_SITE', 'VALET_CERT', 'VALET_KEY'],
-            [VALET_HOME_PATH, VALET_SERVER_PATH, $url, $path . '/' . $url . '.crt', $path . '/' . $url . '.key'],
+            ['VALET_HOME_PATH', 'VALET_SERVER_PATH', 'VALET_SITE', 'VALET_CERT', 'VALET_KEY', 'VALET_HTTP_PORT', 'VALET_HTTPS_PORT'],
+            [VALET_HOME_PATH, VALET_SERVER_PATH, $url, $path . '/' . $url . '.crt', $path . '/' . $url . '.key', $this->config->get('port', 80), $this->config->get('https_port', 443)],
             $this->files->get(__DIR__ . '/../stubs/secure.valet.conf')
         );
     }
@@ -311,6 +319,18 @@ class Site
             $this->cli->run(sprintf('certutil -d sql:$HOME/.pki/nssdb -D -n "%s"', $url));
             $this->cli->run(sprintf('certutil -d $HOME/.mozilla/firefox/*.default -D -n "%s"', $url));
         }
+    }
+
+    /**
+     * Regenerate all secured file configurations
+     *
+     * @return void
+     */
+    public function regenerateSecuredSitesConfig()
+    {
+        $this->secured()->each(function ($url) {
+            $this->createSecureNginxServer($url);
+        });
     }
 
     /**
