@@ -2,8 +2,6 @@
 
 namespace Valet;
 
-use DomainException;
-
 class Site
 {
     public $config;
@@ -321,9 +319,17 @@ class Site
     {
         $path = $this->certificatesPath();
 
-        return str_replace(
-            ['VALET_HOME_PATH', 'VALET_SERVER_PATH', 'VALET_SITE', 'VALET_CERT', 'VALET_KEY', 'VALET_HTTP_PORT', 'VALET_HTTPS_PORT', 'VALET_REDIRECT_PORT'],
-            [VALET_HOME_PATH, VALET_SERVER_PATH, $url, $path . '/' . $url . '.crt', $path . '/' . $url . '.key', $this->config->get('port', 80), $this->config->get('https_port', 443), $this->httpsSuffix()],
+        return str_array_replace(
+            [
+                'VALET_HOME_PATH' => VALET_HOME_PATH,
+                'VALET_SERVER_PATH' => VALET_SERVER_PATH,
+                'VALET_SITE' => $url,
+                'VALET_CERT' => $path . '/' . $url . '.crt',
+                'VALET_KEY' => $path . '/' . $url . '.key',
+                'VALET_HTTP_PORT' => $this->config->get('port', 80),
+                'VALET_HTTPS_PORT' => $this->config->get('https_port', 443),
+                'VALET_REDIRECT_PORT' => $this->httpsSuffix(),
+            ],
             $this->files->get(__DIR__ . '/../stubs/secure.valet.conf')
         );
     }
