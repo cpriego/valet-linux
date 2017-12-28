@@ -90,7 +90,7 @@ class Eopkg implements PackageManager
      */
     public function nmRestart($sm)
     {
-        $sm->restart(['network-manager']);
+        $sm->restart(['NetworkManager']);
     }
 
     /**
