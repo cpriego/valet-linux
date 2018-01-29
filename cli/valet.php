@@ -307,45 +307,7 @@ if (is_dir(VALET_HOME_PATH)) {
             warning('Updating now...');
             passthru($script . ' update');
         }
-    })->descriptions('Update Valet Linux and clean up cruft');
-
-    /**
-     * Change the PHP version to the desired one.
-     */
-    $app->command('use [preferedversion]', function ($preferedversion = null) {
-        info('Changing php-fpm version...');
-        info('This does not affect php -v.');
-        PhpFpm::changeVersion($preferedversion);
-        info('php-fpm version successfully changed! 🎉');
-    })->descriptions('Set the PHP-fpm version to use, enter "default" or leave empty to use version: ' . PhpFpm::getVersion(true));
-
-     /**
-     * Get or set the fallback site path used by Valet for uncaught urls.
-     */
-    $app->command('fallback [path]', function ($path = null) {
-        if ($path === '?') {
-            if (($config = Configuration::read()) && isset($config['fallback'])) {
-                return info($config['fallback']);
-            } else {
-                return warning('Fallback path not set.');
-            }
-        }
-        if ($path && !is_dir($path)) {
-            return warning('The fallback path ['.$path.'] is not a valid directory.');
-        }
-        Configuration::updateKey('fallback', $path ?: getcwd());
-        info('Your Valet fallback path has been updated to '.($path === null ? 'the current directory' : "[{$path}]").'.');
-
-    })->descriptions('Set the current working (or specified) directory as the fallback site path for uncaught urls');
-
-    /**
-     * Removes the fallback site path used by Valet.
-     */
-    $app->command('unfallback', function () {
-        Configuration::updateKey('fallback', null);
-        info('Your Valet fallback path has been removed.');
-    })->descriptions('Remove the fallback site path for uncaught urls');
-
+    })->descriptions('Determine if this is the latest version of Valet');
 }
 
 /**
