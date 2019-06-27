@@ -81,13 +81,13 @@ You may update your Valet installation using the `composer global update` comman
 ### Uninstalling
 After uninstalling valet some people are experiencing some problems.
 Here is a series of commands that you could use to fix your problem (For Ubuntu users) Thanks to @dakira for this guide.
-- rm /opt/valet
-- remove valet-specific settings in /etc/NetworkManager/{conf.d,dnsmasq.d}
-- remove /etc/dnsmasq.d/{valet,options}
-- Make sure resolved is running, if not, enable and start it systemctl status systemd-resolved.
+- `rm /opt/valet`
+- check the folders /etc/NetworkManager/{conf.d,dnsmasq.d} for valet-specific settings and remove them
+- remove the files /etc/dnsmasq.d/{valet,options}
+- Make sure systemd-resolved is running, if not, enable and start it (`systemctl status systemd-resolved`).
 - remove the dnsmasq package (leaving dnsmasq-base!)
-- rm /etc/resolv.conf && ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
-- restart NetworkManager systemctl restart NetworkManager.service
+- make sure /etc/resolv.conf is a symlink to /run/systemd/resolve/resolv.conf
+- restart NetworkManager `systemctl restart NetworkManager`
 
 
 ## <a name="serving-sites">Serving Sites</a>
@@ -296,5 +296,4 @@ Command  | Description
 `valet stop` | Stop the Valet services.
 `valet status` | View Valet services status.
 `valet uninstall` | Uninstall the Valet services entirely.
-
 
