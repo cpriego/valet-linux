@@ -37,9 +37,9 @@ class PhpFpmTest extends TestCase
         $contents = file_get_contents(__DIR__ . '/output/valet.conf');
         $this->assertContains(sprintf("\nuser = %s", user()), $contents);
         $this->assertContains(sprintf("\ngroup = %s", group()), $contents);
-        $this->assertContains(sprintf("\nlisten.owner = %s", user()), $contents);
-        $this->assertContains(sprintf("\nlisten.group = %s", group()), $contents);
-        $this->assertContains("\nlisten = " . VALET_HOME_PATH . "/valet.sock", $contents);
+        $this->assertContains(sprintf("\nlisten.acl_users = %s", user()), $contents);
+        $this->assertContains(sprintf("\nlisten.acl_groups = %s", group()), $contents);
+        $this->assertContains("\nlisten = /run/php-fpm/valet.sock", $contents);
     }
 }
 
@@ -54,5 +54,10 @@ class StubForUpdatingFpmConfigFiles extends PhpFpm
     public function getVersion()
     {
         return '7.1';
+    }
+
+    public function systemdDropInOverride()
+    {
+        return;
     }
 }

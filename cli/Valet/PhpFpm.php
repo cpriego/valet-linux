@@ -127,6 +127,22 @@ class PhpFpm
                 'VALET_HOME_PATH' => VALET_HOME_PATH,
             ], $contents)
         );
+
+        $this->systemdDropInOverride();
+    }
+
+    /**
+     * Install Drop-In systemd override for php-fpm service
+     *
+     * @return void
+     */
+    public function systemdDropInOverride()
+    {
+        $this->files->ensureDirExists('/etc/systemd/system/php-fpm.service.d');
+        $this->files->putAsUser(
+            '/etc/systemd/system/php-fpm.service.d/valet.conf',
+            $this->files->get(__DIR__ . '/../stubs/php-fpm.service.d/valet.conf')
+        );
     }
 
     /**

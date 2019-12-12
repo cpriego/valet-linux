@@ -87,7 +87,7 @@ class NginxTest extends TestCase
             $this->assertTrue(strpos($contents, 'fastcgi_index ' . VALET_SERVER_PATH) !== false);
             $this->assertTrue(strpos($contents, 'fastcgi_param SCRIPT_FILENAME ' . VALET_SERVER_PATH) !== false);
             $this->assertTrue(strpos($contents, 'error_log ' . VALET_HOME_PATH . '/Log/nginx-error.log') !== false);
-            $this->assertTrue(strpos($contents, 'fastcgi_pass unix:' . VALET_HOME_PATH . '/valet.sock') !== false);
+            $this->assertTrue(strpos($contents, 'fastcgi_pass unix:/run/php-fpm/valet.sock') !== false);
         })->once();
 
         $files->shouldReceive('exists')->with('/etc/nginx/sites-enabled/default')->andReturn(true)->once();
