@@ -308,11 +308,12 @@ if (is_dir(VALET_HOME_PATH)) {
             passthru($script . ' update');
         }
     })->descriptions('Update Valet Linux and clean up cruft');
+    
     /**
      * Change the PHP version to the desired one.
      */
     $app->command('use [preferedversion]', function ($preferedversion = null) {
-           info('Changing php-fpm version...');
+        info('Changing php-fpm version...');
         info('This does not affect php -v.');
         PhpFpm::changeVersion($preferedversion);
         info('php-fpm version successfully changed! 🎉');
