@@ -25,3 +25,5 @@ fastcgi_param  SERVER_NAME        $server_name;
 
 # PHP only, required if PHP was built with --enable-force-cgi-redirect
 fastcgi_param  REDIRECT_STATUS    200;
+fastcgi_buffers                   16 16k;
+fastcgi_buffer_size               32k;
