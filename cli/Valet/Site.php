@@ -189,6 +189,54 @@ class Site
         }
     }
 
+
+    /**
+     * Parse Nginx site config file contents to swap old loopback address to new.
+     *
+     * @param  string  $siteConf  Nginx site config content
+     * @param  string  $old  Old loopback address
+     * @param  string  $new  New loopback address
+     * @return string
+     */
+    public function replaceOldLoopbackWithNew($siteConf, $old, $new)
+    {
+        $shouldComment = $new === VALET_LOOPBACK;
+
+        $lookups = [];
+        $lookups[] = '~#?listen .*:80; # valet loopback~';
+        $lookups[] = '~#?listen .*:443 ssl http2; # valet loopback~';
+        $lookups[] = '~#?listen .*:60; # valet loopback~';
+
+        foreach ($lookups as $lookup) {
+            preg_match($lookup, $siteConf, $matches);
+            foreach ($matches as $match) {
+                $replaced = str_replace($old, $new, $match);
+
+                if ($shouldComment && strpos($replaced, '#') !== 0) {
+                    $replaced = '#'.$replaced;
+                }
+
+                if (! $shouldComment) {
+                    $replaced = ltrim($replaced, '#');
+                }
+
+                $siteConf = str_replace($match, $replaced, $siteConf);
+            }
+        }
+
+        return $siteConf;
+    }
+
+    public function valetHomePath()
+    {
+        return VALET_HOME_PATH;
+    }
+
+    public function valetLoopback()
+    {
+        return $this->config->read()['loopback'];
+    }
+
     /**
      * Get all of the URLs that are currently secured.
      *
@@ -362,6 +410,171 @@ class Site
         );
     }
 
+     /**
+     * Build the Nginx proxy config for the specified domain.
+     *
+     * @param  string  $url  The domain name to serve
+     * @param  string  $host  The URL to proxy to, eg: http://127.0.0.1:8080
+     * @param  bool  $secure
+     * @return string
+     */
+    public function proxyCreate($url, $host, $secure = false)
+    {
+        if (! preg_match('~^https?://.*$~', $host)) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a valid URL', $host));
+        }
+
+        $tld = $this->config->read()['domain'];
+        if (! ends_with($url, '.'.$tld)) {
+            $url .= '.'.$tld;
+        }
+
+        $siteConf = $this->replaceOldLoopbackWithNew(
+            $this->files->get(
+                $secure ? __DIR__.'/../stubs/secure.proxy.valet.conf' : __DIR__.'/../stubs/proxy.valet.conf'
+            ),
+            'VALET_LOOPBACK',
+            $this->valetLoopback()
+        );
+
+        $siteConf = str_replace(
+            ['VALET_HOME_PATH', 'VALET_SERVER_PATH', 'VALET_STATIC_PREFIX', 'VALET_SITE', 'VALET_PROXY_HOST'],
+            [$this->valetHomePath(), VALET_SERVER_PATH, VALET_STATIC_PREFIX, $url, $host],
+            $siteConf
+        );
+
+        if ($secure) {
+            $this->secure($url, $siteConf);
+        } else {
+            $this->put($url, $siteConf);
+        }
+
+        $protocol = $secure ? 'https' : 'http';
+
+        info('Valet will now proxy ['.$protocol.'://'.$url.'] traffic to ['.$host.'].');
+    }
+
+    /**
+     * Unsecure the given URL so that it will use HTTP again.
+     *
+     * @param  string  $url
+     * @return void
+     */
+    public function proxyDelete($url)
+    {
+        $tld = $this->config->read()['domain'];
+        if (! ends_with($url, '.'.$tld)) {
+            $url .= '.'.$tld;
+        }
+
+        $this->unsecure($url);
+        $this->files->unlink($this->nginxPath($url));
+
+        info('Valet will no longer proxy [https://'.$url.'].');
+    }
+
+     
+    /**
+     * Create the given nginx host.
+     *
+     * @param  string  $url
+     * @param  string  $siteConf  pregenerated Nginx config file contents
+     * @return void
+     */
+    public function put($url, $siteConf)
+    {
+        $this->unsecure($url);
+
+        $this->files->ensureDirExists($this->nginxPath(), user());
+
+        $this->files->putAsUser(
+            $this->nginxPath($url), $siteConf
+        );
+    }
+
+    /**
+     * Get all sites which are proxies (not Links, and contain proxy_pass directive).
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public function proxies()
+    {
+        $dir = $this->nginxPath();
+        $tld = $this->config->read()['domain'];
+        $links = $this->links();
+        $certsPath = VALET_HOME_PATH . '/Certificates';
+
+        $this->files->ensureDirExists($certsPath, user());
+
+        $certs = $this->getCertificates($certsPath);
+
+        if (! $this->files->exists($dir)) {
+            return collect();
+        }
+
+        $proxies = collect($this->files->scandir($dir))
+        ->filter(function ($site, $key) use ($tld) {
+            // keep sites that match our TLD
+            return ends_with($site, '.'.$tld);
+        })->map(function ($site, $key) use ($tld) {
+            // remove the TLD suffix for consistency
+            return str_replace('.'.$tld, '', $site);
+        })->reject(function ($site, $key) use ($links) {
+            return $links->has($site);
+        })->mapWithKeys(function ($site) {
+            $host = $this->getProxyHostForSite($site) ?: '(other)';
+
+            return [$site => $host];
+        })->reject(function ($host, $site) {
+            // If proxy host is null, it may be just a normal SSL stub, or something else; either way we exclude it from the list
+            return $host === '(other)';
+        })->map(function ($host, $site) use ($certs, $tld) {
+            $secured = $certs->has($site);
+            $url = ($secured ? 'https' : 'http').'://'.$site.'.'.$tld;
+
+            return [
+                'site' => $site,
+                'secured' => $secured ? ' X' : '',
+                'url' => $url,
+                'path' => $host,
+            ];
+        });
+
+        return $proxies;
+    }
+
+    /**
+     * Identify whether a site is for a proxy by reading the host name from its config file.
+     *
+     * @param  string  $site  Site name without TLD
+     * @param  string  $configContents  Config file contents
+     * @return string|null
+     */
+    public function getProxyHostForSite($site, $configContents = null)
+    {
+        $siteConf = $configContents ?: $this->getSiteConfigFileContents($site);
+
+        if (empty($siteConf)) {
+            return null;
+        }
+
+        $host = null;
+        if (preg_match('~proxy_pass\s+(?<host>https?://.*)\s*;~', $siteConf, $patterns)) {
+            $host = trim($patterns['host']);
+        }
+
+        return $host;
+    }
+
+    public function getSiteConfigFileContents($site, $suffix = null)
+    {
+        $config = $this->config->read();
+        $suffix = $suffix ?: '.'.$config['tld'];
+        $file = str_replace($suffix, '', $site).$suffix;
+
+        return $this->files->exists($this->nginxPath($file)) ? $this->files->get($this->nginxPath($file)) : null;
+    }
+
     /**
      * Build the TLS secured Nginx server for the given URL.
      *
@@ -450,4 +663,13 @@ class Site
     {
         return VALET_HOME_PATH . '/Certificates';
     }
+
+    /**
+     * Get the path to Nginx site configuration files.
+     */
+    public function nginxPath($additionalPath = null)
+    {
+        return $this->valetHomePath().'/Nginx'.($additionalPath ? '/'.$additionalPath : '');
+    }
+
 }
