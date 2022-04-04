@@ -212,3 +212,11 @@ function user()
 
     return $_SERVER['SUDO_USER'];
 }
+
+/**
+ * Get the user group.
+ */
+function user_group()
+{
+    return PHP_OS === 'Linux' ? user() : 'staff';
+}

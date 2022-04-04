@@ -62,7 +62,7 @@ class Nginx
 
         $this->files->putAsUser(
             static::NGINX_CONF,
-            str_replace(['VALET_USER', 'VALET_HOME_PATH'], [user(), VALET_HOME_PATH], $contents)
+            str_replace(['VALET_USER', 'VALET_HOME_PATH', 'VALET_GROUP'], [user(), VALET_HOME_PATH, user_group()], $contents)
         );
     }
 

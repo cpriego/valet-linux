@@ -10,7 +10,8 @@ if (php_sapi_name() !== 'cli') {
  */
 $inTestingEnvironment = strpos($_SERVER['SCRIPT_NAME'], 'phpunit') !== false;
 
-if (PHP_OS !== 'Darwin' && ! $inTestingEnvironment) {
+$compatibleOperatingSystems = ['Linux', 'Darwin'];
+if (! in_array(PHP_OS, $compatibleOperatingSystems) && ! $inTestingEnvironment) {
     echo 'Valet only supports the Mac operating system.'.PHP_EOL;
 
     exit(1);
