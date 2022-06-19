@@ -190,6 +190,9 @@ abstract class ValetDriver
     public function loadServerEnvironmentVariables($sitePath, $siteName)
     {
         $varFilePath = $sitePath . '/.valet-env.php';
+        if (! file_exists($varFilePath)) {
+            $varFilePath = VALET_HOME_PATH.'/.valet-env.php';
+        }
         if (!file_exists($varFilePath)) {
             return;
         }
