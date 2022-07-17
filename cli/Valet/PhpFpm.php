@@ -218,37 +218,43 @@ class PhpFpm
 
         return $version;
     }
+    
+    /**
+     * Get the possible PHP FPM service names.
+     *
+     * @return array
+     */
+    public function getFpmServiceNames()
+    {
+        return [
+            "php-fpm",
+            "php-fpm{$this->version}",
+            "php{$this->version}-fpm",
+        ];
+    }
 
     /**
      * Determine php service name
      *
      * @return string
      */
-    public function fpmServiceName($serviceName = null)
+    public function fpmServiceName()
     {
-        if($serviceName === null){
-            $service = "php{$this->version}-fpm";
-        }else{
-            $service = $serviceName;
-        }
-        $status = $this->sm->status($service);
-        if (strpos($status, 'not-found') || strpos($status, 'not be found')) {
-                $secondTry = $this->fpmServiceName("php-fpm");
-                if (strpos($secondTry, 'not-found') || strpos($secondTry, 'not be found')) {
-                    $thirdTry = $this->fpmServiceName("php-fpm{$this->version}");
-                    if($thirdTry instanceof DomainException){
-                        return new DomainException("Unable to determine PHP service name.");
-                    }
-
-                    return $thirdTry;
-                }
-
-                return $secondTry;
-
-                return $secondTry;
+        $services = array_map(function ($serviceName) {
+            return [
+                'name' => $serviceName,
+                'status' => $this->sm->status($serviceName),
+            ];
+        }, $this->getFpmServiceNames());
+        $services = array_filter($services, function ($service) {
+            return false === strpos($service['status'], 'not-found') && false === strpos($service['status'], 'not be found');
+        });
+        $service = reset($services);
+        if (is_array($service) && ! empty($service['name'])) {
+            return $service['name'];
         }
 
-        return $service;
+        return new DomainException('Unable to determine PHP service name.');
     }
 
     /**
