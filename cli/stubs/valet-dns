@@ -106,7 +106,12 @@ function watchDirs() {
 
 function main() {
     # Create dns file in case it does not exists
-    touch "$DNSHEAD"
+    if [[ ! -f "$DNSHEAD" ]]
+    then
+        echo "Creating default $DNSHEAD file"
+        echo nameserver 1.1.1.1 > $DNSHEAD
+    fi
+
     touch "$DNSFILE"
 
     # Clear log file

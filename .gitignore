@@ -7,3 +7,4 @@ psysh
 Gemfile
 Gemfile.lock
 _site/
+.idea/**

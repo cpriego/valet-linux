@@ -194,6 +194,10 @@ class Configuration
      */
     public function read()
     {
+        if (!$this->files->exists($this->path())){
+            // Create default configuration
+            $this->install();
+        }
         return json_decode($this->files->get($this->path()), true);
     }
 
