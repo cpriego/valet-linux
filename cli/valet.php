@@ -34,6 +34,7 @@ $app->command('install [--ignore-selinux]', function ($ignoreSELinux) {
     passthru(dirname(__FILE__) . '/scripts/update.sh'); // Clean up cruft
 
     Requirements::setIgnoreSELinux($ignoreSELinux)->check();
+    AppArmor::install();
     Nginx::install();
     PhpFpm::install();
     DnsMasq::install(Configuration::read()['domain']);
@@ -318,6 +319,7 @@ if (is_dir(VALET_HOME_PATH)) {
     $app->command('uninstall', function () {
         Nginx::uninstall();
         PhpFpm::uninstall();
+        AppArmor::uninstall();
         DnsMasq::uninstall();
         Configuration::uninstall();
         Valet::uninstall();

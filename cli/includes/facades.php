@@ -73,6 +73,11 @@ class DnsMasq extends Facade
 {
 }
 
+class AppArmor extends Facade
+{
+}
+
+
 class Filesystem extends Facade
 {
 }
