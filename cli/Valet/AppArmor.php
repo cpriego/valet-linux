@@ -55,17 +55,17 @@ class AppArmor
     {
         $usrSbinDnsmasq = $this->usrSbinDnsmasq;
         $this->files->backup($usrSbinDnsmasq);
-        $contents = $this->files->get(__DIR__ . '/../stubs/usr.sbin.dnsmasq');
+        $contents = $this->files->get(__DIR__ . '/../stubs/apparmor/usr.sbin.dnsmasq');
         $this->files->put($usrSbinDnsmasq, $contents);
 
         $phpFpm = $this->phpFpm;
         $this->files->backup($phpFpm);
-        $contents = $this->files->get(__DIR__ . '/../stubs/php-fpm');
+        $contents = $this->files->get(__DIR__ . '/../stubs/apparmor/php-fpm');
         $this->files->put($phpFpm, $contents);
 
         $usrSbinAvahi = $this->usrSbinAvahi;
         $this->files->backup($usrSbinAvahi);
-        $contents = $this->files->get(__DIR__ . '/../stubs/usr.sbin.avahi-daemon');
+        $contents = $this->files->get(__DIR__ . '/../stubs/apparmor/usr.sbin.avahi-daemon');
         $this->files->put($usrSbinAvahi, $contents);
     }
 
