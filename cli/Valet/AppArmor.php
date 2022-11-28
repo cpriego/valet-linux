@@ -53,8 +53,6 @@ class AppArmor
      */
     public function installConfiguration()
     {
-        #sudo aa-logprof
-
         $usrSbinDnsmasq = $this->usrSbinDnsmasq;
         $this->files->backup($usrSbinDnsmasq);
         $contents = $this->files->get(__DIR__ . '/../stubs/usr.sbin.dnsmasq');
