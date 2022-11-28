@@ -9,7 +9,9 @@ class AppArmor
     public $sm;
     public $cli;
     public $files;
-    public $usr_sbin_dnsmasq;
+    public $usrSbinDnsmasq;
+    public $phpFpm;
+    public $usrSbinAvahi;
 
     /**
      * Create a new Nginx instance.
@@ -24,7 +26,9 @@ class AppArmor
         $this->cli = $cli;
         $this->sm = $sm;
         $this->files = $files;
-        $this->usr_sbin_dnsmasq = '/etc/apparmor.d/local/usr.sbin.dnsmasq';
+        $this->usrSbinDnsmasq = '/etc/apparmor.d/local/usr.sbin.dnsmasq';
+        $this->phpFpm = '/etc/apparmor.d/local/php-fpm';
+        $this->usrSbinAvahi = '/etc/apparmor.d/local/usr.sbin.avahi-daemon';
     }
 
     /**
@@ -49,10 +53,22 @@ class AppArmor
      */
     public function installConfiguration()
     {
-        $usr_sbin_dnsmasq = $this->usr_sbin_dnsmasq;
-        $this->files->backup($usr_sbin_dnsmasq);
+        #sudo aa-logprof
+
+        $usrSbinDnsmasq = $this->usrSbinDnsmasq;
+        $this->files->backup($usrSbinDnsmasq);
         $contents = $this->files->get(__DIR__ . '/../stubs/usr.sbin.dnsmasq');
-        $this->files->put($usr_sbin_dnsmasq, $contents);
+        $this->files->put($usrSbinDnsmasq, $contents);
+
+        $phpFpm = $this->phpFpm;
+        $this->files->backup($phpFpm);
+        $contents = $this->files->get(__DIR__ . '/../stubs/php-fpm');
+        $this->files->put($phpFpm, $contents);
+
+        $usrSbinAvahi = $this->usrSbinAvahi;
+        $this->files->backup($usrSbinAvahi);
+        $contents = $this->files->get(__DIR__ . '/../stubs/usr.sbin.avahi-daemon');
+        $this->files->put($usrSbinAvahi, $contents);
     }
 
     /**
@@ -93,6 +109,8 @@ class AppArmor
     public function uninstall()
     {
         $this->stop();
-        $this->files->restore($this->usr_sbin_dnsmasq);
+        $this->files->restore($this->usrSbinDnsmasq);
+        $this->files->restore($this->phpFpm);
+        $this->files->restore($this->usrSbinAvahi);
     }
 }

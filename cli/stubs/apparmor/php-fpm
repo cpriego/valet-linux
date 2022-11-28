@@ -1,0 +1,6 @@
+# Site-specific additions and overrides for 'php-fpm'
+owner /etc/php-fpm.d/ r,
+owner /etc/php.d/ r,
+owner /etc/php.ini r,
+owner /etc/pki/tls/openssl.cnf r,
+/home/*/.valet/* rwlk,
