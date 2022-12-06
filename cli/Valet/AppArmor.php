@@ -38,12 +38,13 @@ class AppArmor
      */
     public function install()
     {
-        if ((strpos($this->cli->run("aa-status"), 'is loaded') == 0)) {
-            $this->files->ensureDirExists('/etc/apparmor.d/local/');
-            $this->stop();
-            $this->installConfiguration();
-            $this->start();
+        if (!$this->check()) {
+            return;
         }
+        $this->files->ensureDirExists('/etc/apparmor.d/local/');
+        $this->stop();
+        $this->installConfiguration();
+        $this->start();
     }
 
     /**
@@ -100,15 +101,33 @@ class AppArmor
     }
 
     /**
+     * check if the AppArmor module is loaded
+     *
+     * @return bool
+     */
+    public function check()
+    {
+        return (bool) strpos($this->cli->run("aa-status"), 'is loaded');
+    }
+
+    /**
      * Prepare AppArmor for uninstallation.
      *
      * @return void
      */
     public function uninstall()
     {
-        $this->stop();
-        $this->files->restore($this->usrSbinDnsmasq);
-        $this->files->restore($this->phpFpm);
-        $this->files->restore($this->usrSbinAvahi);
+        if ($this->files->exists($this->usrSbinDnsmasq)) {
+            $this->files->restore($this->usrSbinDnsmasq);
+        }
+        if ($this->files->exists($this->phpFpm)) {
+            $this->files->restore($this->phpFpm);
+        }
+        if ($this->files->exists($this->usrSbinAvahi)) {
+            $this->files->restore($this->usrSbinAvahi);
+        }
+        if ($this->check()) {
+            $this->stop();
+        }
     }
 }
