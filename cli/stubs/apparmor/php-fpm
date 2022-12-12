@@ -1,6 +1,17 @@
 # Site-specific additions and overrides for 'php-fpm'
+#changes by aa-logprof
+include <abstractions/user-tmp>
+capability dac_read_search,
 owner /etc/php-fpm.d/ r,
 owner /etc/php.d/ r,
 owner /etc/php.ini r,
 owner /etc/pki/tls/openssl.cnf r,
-/home/*/.valet/* rwlk,
+owner /home/*/** rwk,
+owner /run/php*/* w,
+/etc/php*/* r,
+owner /etc/php*.conf r,
+owner /var/log/php*/* w,
+owner /etc/authselect/*.conf r,
+/opt/valet-linux/resolv.conf r,
+/etc/pki/ca-trust/extracted/pem/*.pem r,
+/usr/bin/bash mrix,
