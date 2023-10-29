@@ -534,9 +534,19 @@ class PhpFpm
         return $path;
     }
 
-    public function getPhpVersion()
+    /**
+     * This method check package manager to skip the version for some distros,
+     * and return the version or null depend on the distro.
+     *
+     * @return string|null
+     */
+    public function getPhpVersion(): string|null
     {
         if ($this->pm instanceof Dnf) {
+            return null;
+        }
+
+        if ($this->pm instanceof Pacman) {
             return null;
         }
 
