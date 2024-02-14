@@ -1,4 +1,5 @@
 <?php
+namespace Valet\Drivers;
 
 class Concrete5ValetDriver extends BasicValetDriver
 {

@@ -1,4 +1,5 @@
 <?php
+namespace Valet\Drivers;
 
 /**
  * This driver serves TYPO3 instances (version 7.0 and up). It activates, if it

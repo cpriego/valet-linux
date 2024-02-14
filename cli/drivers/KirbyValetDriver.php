@@ -1,4 +1,5 @@
 <?php
+namespace Valet\Drivers;
 
 class KirbyValetDriver extends ValetDriver
 {

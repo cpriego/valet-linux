@@ -1,4 +1,5 @@
 <?php
+namespace Valet\Drivers;
 
 class StatamicV1ValetDriver extends ValetDriver
 {

@@ -1,5 +1,6 @@
 <?php
 
+namespace Valet\Drivers;
 abstract class ValetDriver
 {
     /**
@@ -50,29 +51,28 @@ abstract class ValetDriver
 
         $drivers = array_merge($drivers, static::driversIn(VALET_HOME_PATH . '/Drivers'));
 
-        $drivers[] = 'LaravelValetDriver';
-
-        $drivers[] = 'WordPressValetDriver';
-        $drivers[] = 'BedrockValetDriver';
-        $drivers[] = 'ContaoValetDriver';
-        $drivers[] = 'SymfonyValetDriver';
-        $drivers[] = 'CraftValetDriver';
-        $drivers[] = 'StatamicValetDriver';
-        $drivers[] = 'StatamicV1ValetDriver';
-        $drivers[] = 'CakeValetDriver';
-        $drivers[] = 'Cake2ValetDriver';
-        $drivers[] = 'SculpinValetDriver';
-        $drivers[] = 'JigsawValetDriver';
-        $drivers[] = 'KirbyValetDriver';
-        $drivers[] = 'KatanaValetDriver';
-        $drivers[] = 'JoomlaValetDriver';
-        $drivers[] = 'DrupalValetDriver';
-        $drivers[] = 'Concrete5ValetDriver';
-        $drivers[] = 'Typo3ValetDriver';
-        $drivers[] = 'NeosValetDriver';
-        $drivers[] = 'Magento2ValetDriver';
-
-        $drivers[] = 'BasicValetDriver';
+        // Adicionar o namespace completo para cada driver
+        $drivers[] = 'Valet\Drivers\LaravelValetDriver';
+        $drivers[] = 'Valet\Drivers\WordPressValetDriver';
+        $drivers[] = 'Valet\Drivers\BedrockValetDriver';
+        $drivers[] = 'Valet\Drivers\ContaoValetDriver';
+        $drivers[] = 'Valet\Drivers\SymfonyValetDriver';
+        $drivers[] = 'Valet\Drivers\CraftValetDriver';
+        $drivers[] = 'Valet\Drivers\StatamicValetDriver';
+        $drivers[] = 'Valet\Drivers\StatamicV1ValetDriver';
+        $drivers[] = 'Valet\Drivers\CakeValetDriver';
+        $drivers[] = 'Valet\Drivers\Cake2ValetDriver';
+        $drivers[] = 'Valet\Drivers\SculpinValetDriver';
+        $drivers[] = 'Valet\Drivers\JigsawValetDriver';
+        $drivers[] = 'Valet\Drivers\KirbyValetDriver';
+        $drivers[] = 'Valet\Drivers\KatanaValetDriver';
+        $drivers[] = 'Valet\Drivers\JoomlaValetDriver';
+        $drivers[] = 'Valet\Drivers\DrupalValetDriver';
+        $drivers[] = 'Valet\Drivers\Concrete5ValetDriver';
+        $drivers[] = 'Valet\Drivers\Typo3ValetDriver';
+        $drivers[] = 'Valet\Drivers\NeosValetDriver';
+        $drivers[] = 'Valet\Drivers\Magento2ValetDriver';
+        $drivers[] = 'Valet\Drivers\BasicValetDriver';
 
         foreach ($drivers as $driver) {
             $driver = new $driver;

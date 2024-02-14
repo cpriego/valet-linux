@@ -1,4 +1,5 @@
 <?php
+namespace Valet\Drivers;
 
 class Cake2ValetDriver extends ValetDriver
 {

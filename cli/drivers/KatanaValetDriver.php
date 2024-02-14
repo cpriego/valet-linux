@@ -1,4 +1,5 @@
 <?php
+namespace Valet\Drivers;
 
 class KatanaValetDriver extends BasicValetDriver
 {

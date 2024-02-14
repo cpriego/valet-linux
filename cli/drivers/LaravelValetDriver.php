@@ -1,5 +1,7 @@
 <?php
 
+namespace Valet\Drivers;
+
 class LaravelValetDriver extends ValetDriver
 {
     /**

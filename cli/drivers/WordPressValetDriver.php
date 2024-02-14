@@ -1,4 +1,5 @@
 <?php
+namespace Valet\Drivers;
 
 class WordPressValetDriver extends BasicValetDriver
 {
