@@ -11,7 +11,7 @@ function check_dependencies() {
     local NC='\033[0m'
     local msg=''
 
-    for cmd in "jq" "xsel" "certutil"; do
+    for cmd in "jq" "xsel" "certutil" "php"; do
         local str=''
 
         if ! [[ -x "$(command -v $cmd)" ]]; then
@@ -27,6 +27,18 @@ function check_dependencies() {
         exit 1
     fi
 }
+
+function load_asdf() {
+    if ! [[ -x "php -v" ]]; then
+        # Check if ASDF is installed and reshim PHP.
+        if [[ -f "$HOME/.asdf/bin/asdf" ]]; then
+            source $HOME/.asdf/asdf.sh
+        fi
+    fi
+}
+
+# If the user has ASDF installed, we need to load it first.
+load_asdf
 
 # If the current source is a symbolic link, we need to resolve it to an
 # actual directory name. We'll use PHP to do this easier than we can
