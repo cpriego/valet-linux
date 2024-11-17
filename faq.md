@@ -9,6 +9,7 @@
 - [Why do I get certificate errors after securing a site?](#why-do-i-get-certificate-errors-after-securing-a-site)
 - [What files does Valet _Linux_ change?](#what-files-does-valet-linux-change)
 - [Why is my network connection dropped after installing or changing the TLD](#why-is-my-network-connection-dropped-after-installing-or-changing-the-tld)
+- [Issue `valet secure` doesnt work?](#issue-valet-secure-doesnt-work)
 - [Any other tips?](#any-other-tips)
 
 ## Why can't I run `valet install`?
@@ -64,6 +65,20 @@ Valet 2.0 will overwrite the Nginx, PhpFPM config files. If you've previously co
 ## Why is my network connection dropped after installing or changing the TLD?
 
 **NetworkManager** loves being involved in everything network-related including DNS. We configure **DnsMasq** through **NetworkManager** so your network connection _**might**_ drop whenever you **install** Valet or change the domain. To solve this simply reconnect to your network.
+
+## Issue `valet secure` doesnt work?
+Solutions:
+
+Chrome : Search for Manage Certificates > Authorities > Import LaravelValetCASelfSigned
+
+FireFox : Search Certificates > View Certificates > Authorities > Import LaravelValetCASelfSigned
+
+Path: LaravelValetCASelfSigned
+```bash
+cd ~/.valet/CA
+```
+
+[Relate Issue](https://github.com/cpriego/valet-linux/issues/233)
 
 
 ## Any other tips?
