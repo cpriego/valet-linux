@@ -88,7 +88,6 @@ class Site
     {
         $dir = $this->nginxPath();
         $domain = $this->config->read()['domain'];
-        $links = $this->links();
         $certs = $this->getCertificates(VALET_HOME_PATH . '/Certificates');
 
         if (!$this->files->exists($dir)) {
@@ -96,30 +95,28 @@ class Site
         }
 
         $proxies = collect($this->files->scandir($dir))
-            ->filter(function ($site, $key) use ($domain) {
+            ->filter(function ($site) use ($domain) {
                 // keep sites that match our TLD
                 return ends_with($site, '.' . $domain);
-            })->map(function ($site, $key) use ($domain) {
+            })->map(function ($site) use ($domain) {
                 // remove the TLD suffix for consistency
                 return str_replace('.' . $domain, '', $site);
-            })->reject(function ($site, $key) use ($links) {
-                return !$links->has($site);
-            })->mapWithKeys(function ($site) {
+            })
+            // Removed rejection based on $links from here
+            ->mapWithKeys(function ($site) {
                 $host = $this->getProxyHostForSite($site) ?: '(other)';
-
                 return [$site => $host];
-            })->reject(function ($host, $site) {
-                // If proxy host is null, it may be just a normal SSL stub, or something else; either way we exclude it from the list
+            })->reject(function ($host) {
+                // Exclude sites without a valid proxy_pass directive
                 return $host === '(other)';
-            })->map(function ($host, $site) use ($certs, $domain) {
+            })->map(function ($host, $site) use ($certs, $domain) {             
                 $secured = $certs->has($site);
                 $url = ($secured ? 'https' : 'http') . '://' . $site . '.' . $domain;
-
                 return [
-                    'site' => $site,
+                    'site'    => $site,
                     'secured' => $secured ? ' X' : '',
-                    'url' => $url,
-                    'path' => $host,
+                    'url'     => $url,
+                    'path'    => $host,
                 ];
             });
 
@@ -309,11 +306,14 @@ class Site
     public function getCertificates($path = null)
     {
         $path = $path ?: $this->certificatesPath();
-
+        $domain = $this->config->read()['domain'];
+        
         return collect($this->files->scanDir($path))->filter(function ($value, $key) {
             return ends_with($value, '.crt');
-        })->map(function ($cert) {
-            return substr($cert, 0, -9);
+        })->map(function ($cert) use ($domain) {
+            // Remove extension then remove trailing tld, e.g. ".example"
+            $name = pathinfo($cert, PATHINFO_FILENAME);
+            return preg_replace('/\.' . preg_quote($domain, '/') . '$/', '', $name);
         })->flip();
     }
 
