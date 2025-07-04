@@ -35,17 +35,17 @@ function getDirs() {
 
     # Find nameserver files in the /run/NetworkManager folder (as they do not have a standard name)
     if [[ ! -f "/run/NetworkManager/resolv.conf" && -d "/run/NetworkManager" ]]; then
-        TARRAY=(${TARRAY[@]} '/run/NetworkManager/')
+        TARRAY=("${TARRAY[@]}" '/run/NetworkManager/')
     fi
 
     # Find nameserver files in the /run/resolvconf/interface folder (as they do not have a standard name)
     if [[ -d "/run/resolvconf/interface" ]]; then
-        TARRAY=(${TARRAY[@]} '/run/resolvconf/interface/')
+        TARRAY=("${TARRAY[@]}" '/run/resolvconf/interface/')
     fi
 
     for ENTRY in "${TARRAY[@]}"; do
         local TMP=${ENTRY%/*}
-        DIRS=(${DIRS[@]} "$TMP")
+        DIRS=("${DIRS[@]}" "$TMP")
     done
 }
 
@@ -57,14 +57,29 @@ function updateNameservers() {
 
     echo "${FILES[@]}" | tee "${WORKDIR}/resolvfiles.log" &>/dev/null
 
-    cat "$DNSHEAD" | unique | tee "$DNSFILE" &>/dev/null
-    cat "${FILES[@]}" | grep -i '^nameserver' | grep -vE '127\.(0\.){2}\d{1,3}' | unique | tee -a "$DNSFILE" &>/dev/null
+    unique < "$DNSHEAD" | tee "$DNSFILE" &>/dev/null
+    grep -i '^nameserver' "${FILES[@]}" | grep -vE '127\.(0\.){2}{1,3}' | unique | tee -a "$DNSFILE" &>/dev/null
 
     symlinkResolv
 
-    cat "${FILES[@]}" | grep -v '^nameserver' | grep -v '^#' | unique | tee "$VRESOLV" &>/dev/null
-    echo 'nameserver 127.0.0.1' >> "$VRESOLV"
-
+    # @WHY ?
+    # This line under creates an empty file ...why ?
+    # why:   cat "${FILES[@]}" | grep -v '^nameserver' | grep -v '^#' | unique | tee "$VRESOLV" &>/dev/null
+    #      = same  grep -v '^nameserver' "${FILES[@]}" | grep -v '^#' | unique | tee "$VRESOLV" &>/dev/null
+    # And this line then adds 127 alone into the resolv.conf
+    # why: echo 'nameserver 127.0.0.1' >> "$VRESOLV"
+    # the result in localhost is to efectively remove all access to the
+    # outsite world
+    # I would like to know what is the expectation and why is this like
+    # this 
+    
+    # I suggest passing local 127 first when creating the resolv.conf
+    echo 'nameserver 127.0.0.1' > "$VRESOLV"
+    # Here are appending the gateway given by the network interface
+    # to keep laptop online
+    # I don't why we need t remove comments ?
+    grep -E '^nameserver|^#' "${FILES[@]}" | unique | tee -a "$VRESOLV" &>/dev/null
+   
     # Add "search" and "domain" directives to /etc/resolv.conf
     # chattr -i "$RESOLV" && \
     # cat "${FILES[@]}" | grep -v '^nameserver' | grep -v '^#' | unique | tee "$VRESOLV" &>/dev/null && \
@@ -77,19 +92,19 @@ function getFiles() {
     local TARRAY=()
 
     for DIR in "${DIRS[@]}"; do
-        readarray -t TARRAY <<< "$(find ${DIR} -path ! -readable -prune -o -name 'resolv.conf' -print)"
+        readarray -t TARRAY <<< "$(find "${DIR}" -path ! -readable -prune -o -name 'resolv.conf' -print)"
 
         # Find nameserver files in the /run/resolvconf/interface folder (as they do not have a standard name)
         if [[ "$DIR" = "/run/resolvconf/interface" ]]; then
-            readarray -t TARRAY <<< "$(find ${DIR} ! -readable -prune -o -type f -print)"
+            readarray -t TARRAY <<< "$(find "${DIR}" ! -readable -prune -o -type f -print)"
         fi
 
-        FILES=(${FILES[@]} ${TARRAY[@]})
+        FILES=("${FILES[@]}" "${TARRAY[@]}")
     done
 }
 
 function watchDirs() {
-    local WATCHERS=(${DIRS[@]} "$DNSHEAD")
+    local WATCHERS=("${DIRS[@]}" "$DNSHEAD")
 
     # Log which directories are being watched
     echo "Watching the following directories for changes:" >> "$LOGFILE"
@@ -99,7 +114,7 @@ function watchDirs() {
     done
 
     # Watch directories for changes in files
-    inotifywait -q -m -e modify -e create -e delete --format "%w%f" "${WATCHERS[@]}" | while read change; do
+		inotifywait -q -m -e modify -e create -e delete --format "%w%f" "${WATCHERS[@]}" | while read -r __change; do
         updateNameservers
     done &
 }
@@ -134,7 +149,7 @@ function start {
     else
         echo -e "Starting Valet DNS Watcher..."
         main
-        sleep 2 && echo $(pgrep -f 'inotifywait -q -m -e modify') > "${WORKDIR}/watch.pid"
+        sleep 2 && pgrep -f 'inotifywait -q -m -e modify' > "${WORKDIR}/watch.pid"
         echo -e "Valet DNS Watcher started succesfully."
     fi
 }
