@@ -81,6 +81,18 @@ class Ngrok extends Facade
 {
 }
 
+class Cloudflared extends Facade
+{
+}
+
+class Expose extends Facade
+{
+}
+
+class Diagnose extends Facade
+{
+}
+
 class PhpFpm extends Facade
 {
 }

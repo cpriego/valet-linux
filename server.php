@@ -4,8 +4,8 @@
  * Define the user's "~/.valet" path.
  */
 
-define('VALET_HOME_PATH', posix_getpwuid(fileowner(__FILE__))['dir'] . '/.valet');
-define('VALET_STATIC_PREFIX', '41c270e4-5535-4daa-b23e-c269744c2f45');
+defined('VALET_HOME_PATH') or define('VALET_HOME_PATH', posix_getpwuid(fileowner(__FILE__))['dir'] . '/.valet');
+defined('VALET_STATIC_PREFIX') or define('VALET_STATIC_PREFIX', '41c270e4-5535-4daa-b23e-c269744c2f45');
 
 if (!function_exists('show_valet_404')) {
 /**
@@ -131,6 +131,84 @@ if (!function_exists('valet_default_site_path')) {
     }
 }
 
+if (!function_exists('valet_host_is_ip_address')) {
+/**
+ * Determine whether the given host (from HTTP_HOST) is an IPv4 address.
+ *
+ * @param string $host
+ * @return bool
+ */
+    function valet_host_is_ip_address($host)
+    {
+        return (bool) preg_match('/^([0-9]+\.){3}[0-9]+$/', explode(':', $host)[0]);
+    }
+}
+
+if (!function_exists('valet_site_from_ip_address_uri')) {
+/**
+ * Return the Valet site when given the request URI of an address that uses IP address
+ * local access.
+ *
+ * E.g. URL is 192.168.1.100/onramp.test/auth/login, $uri is onramp.test/auth/login and
+ * $domain is "test", this returns onramp.test
+ *
+ * For use when accessing Valet sites across a local network.
+ *
+ * @param string $uri
+ * @param string $domain
+ * @return string|null
+ */
+    function valet_site_from_ip_address_uri($uri, $domain)
+    {
+        if (preg_match('/^[-.0-9a-zA-Z]+\.' . preg_quote($domain, '/') . '(?=\/|$)/', $uri, $matches)) {
+            return $matches[0];
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('valet_show_directory_listing')) {
+/**
+ * Show a listing of the files in the given site directory, and stop.
+ *
+ * @param string $valetSitePath
+ * @param string $uri
+ * @return void
+ */
+    function valet_show_directory_listing($valetSitePath, $uri)
+    {
+        $isRoot = ($uri == '/');
+        $directory = $isRoot ? $valetSitePath : $valetSitePath . $uri;
+
+        if (!file_exists($directory)) {
+            show_valet_404();
+        }
+
+        // Sort directories at the top
+        $paths = glob($directory . '/*');
+        usort($paths, function ($a, $b) {
+            return (is_dir($a) == is_dir($b)) ? strnatcasecmp($a, $b) : (is_dir($a) ? -1 : 1);
+        });
+
+        $e = function ($value) {
+            return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        };
+
+        echo '<h1>Index of ' . $e($uri) . '</h1>';
+        echo '<hr>';
+        echo implode('<br>' . PHP_EOL, array_map(function ($path) use ($uri, $isRoot, $e) {
+            $file = basename($path);
+
+            return $isRoot
+                ? "<a href='/" . $e(rawurlencode($file)) . "'>/" . $e($file) . '</a>'
+                : "<a href='" . $e(rtrim($uri, '/') . '/' . rawurlencode($file)) . "'>" . $e(rtrim($uri, '/') . '/' . $file) . '</a>';
+        }, $paths));
+
+        exit;
+    }
+}
+
 /**
  * Load the Valet configuration.
  */
@@ -139,11 +217,30 @@ $valetConfig = json_decode(
 );
 
 /**
+ * If the HTTP_HOST is an IP address, check the start of the REQUEST_URI for a valid
+ * hostname, extract and use it as the effective HTTP_HOST in place of the IP. It
+ * enables the use of Valet in a local network.
+ */
+if (valet_host_is_ip_address($_SERVER['HTTP_HOST'])) {
+    $uriForIpAddressExtraction = ltrim($_SERVER['REQUEST_URI'], '/');
+
+    if ($host = valet_site_from_ip_address_uri($uriForIpAddressExtraction, $valetConfig['domain'])) {
+        $_SERVER['HTTP_HOST'] = $host;
+        $_SERVER['REQUEST_URI'] = substr($uriForIpAddressExtraction, strlen($host));
+    }
+}
+
+/**
  * Parse the URI and site / host for the incoming request.
  */
 $uri = rawurldecode(
     explode("?", $_SERVER['REQUEST_URI'])[0]
 );
+
+// Reject URIs with ".." segments so drivers can't build paths outside the site directory.
+if (in_array('..', explode('/', $uri), true)) {
+    show_valet_404();
+}
 
 $siteName = basename(
 // Filter host to support xip.io feature
@@ -231,8 +328,32 @@ $frontControllerPath = $valetDriver->frontControllerPath(
 );
 
 if (!$frontControllerPath) {
+    if (isset($valetConfig['directory-listing']) && $valetConfig['directory-listing'] == 'on') {
+        valet_show_directory_listing($valetSitePath, $uri);
+    }
+
     show_valet_404();
 }
+
+/**
+ * Unset our variables to avoid leakage into the user's application.
+ */
+unset(
+    $valetConfig,
+    $uriForIpAddressExtraction,
+    $host,
+    $uri,
+    $siteName,
+    $valetSitePath,
+    $valetDriver,
+    $isPhpFile,
+    $staticFilePath,
+    $path,
+    $domain,
+    $dirPath,
+    $slug,
+    $pos
+);
 
 chdir(dirname($frontControllerPath));
 

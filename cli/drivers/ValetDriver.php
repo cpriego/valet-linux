@@ -50,14 +50,17 @@ abstract class ValetDriver
 
         $drivers = array_merge($drivers, static::driversIn(VALET_HOME_PATH . '/Drivers'));
 
+        $drivers[] = 'StatamicValetDriver';
         $drivers[] = 'LaravelValetDriver';
 
         $drivers[] = 'WordPressValetDriver';
         $drivers[] = 'BedrockValetDriver';
+        $drivers[] = 'RadicleValetDriver';
+        $drivers[] = 'NetteValetDriver';
         $drivers[] = 'ContaoValetDriver';
         $drivers[] = 'SymfonyValetDriver';
         $drivers[] = 'CraftValetDriver';
-        $drivers[] = 'StatamicValetDriver';
+        $drivers[] = 'StatamicV2ValetDriver';
         $drivers[] = 'StatamicV1ValetDriver';
         $drivers[] = 'CakeValetDriver';
         $drivers[] = 'Cake2ValetDriver';
@@ -72,6 +75,7 @@ abstract class ValetDriver
         $drivers[] = 'NeosValetDriver';
         $drivers[] = 'Magento2ValetDriver';
 
+        $drivers[] = 'BasicWithPublicValetDriver';
         $drivers[] = 'BasicValetDriver';
 
         foreach ($drivers as $driver) {

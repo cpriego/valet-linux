@@ -2,4 +2,4 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-php $DIR/../valet.php fetch-share-url | xsel -b
+php "$DIR/../valet.php" fetch-share-url "$1" | xsel -b

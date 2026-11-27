@@ -538,6 +538,30 @@ class PhpFpm
         return $path;
     }
 
+    /**
+     * Get the path of the PHP CLI executable for the given version, or the default one.
+     *
+     * @param string|null $phpVersion
+     * @return string
+     */
+    public function getPhpExecutablePath($phpVersion = null)
+    {
+        if ($phpVersion = $this->normalizePhpVersion($phpVersion)) {
+            // Debian/Ubuntu ship php8.1, other distributions php81
+            foreach (['php' . $phpVersion, 'php' . str_replace('.', '', $phpVersion)] as $binary) {
+                $path = trim($this->cli->run('command -v ' . escapeshellarg($binary)));
+
+                if ($path !== '') {
+                    return $path;
+                }
+            }
+        }
+
+        $path = trim($this->cli->run('command -v php'));
+
+        return $path !== '' ? $path : PHP_BINARY;
+    }
+
     public function getPhpVersion()
     {
         if ($this->pm instanceof Dnf) {

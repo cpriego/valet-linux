@@ -4,28 +4,39 @@ class ContaoValetDriver extends ValetDriver
 {
     /**
      * Determine if the driver serves the request.
-     *
-     * @param string $sitePath
-     * @param string $siteName
-     * @param string $uri
-     * @return bool
      */
     public function serves($sitePath, $siteName, $uri)
     {
-        return is_dir($sitePath . '/vendor/contao') && file_exists($sitePath . '/web/app.php');
+        $frontControllerDirectory = $this->frontControllerDirectory($sitePath);
+
+        return is_dir($sitePath . '/vendor/contao') && file_exists($sitePath . '/' . $frontControllerDirectory . '/index.php');
+    }
+
+    /**
+     * Determine the name of the directory where the front controller lives.
+     */
+    public function frontControllerDirectory($sitePath)
+    {
+        $dirs = ['web', 'public'];
+
+        foreach ($dirs as $dir) {
+            if (is_dir($sitePath . '/' . $dir)) {
+                return $dir;
+            }
+        }
+
+        // Give up, and just return the default
+        return 'public';
     }
 
     /**
      * Determine if the incoming request is for a static file.
-     *
-     * @param string $sitePath
-     * @param string $siteName
-     * @param string $uri
-     * @return string|false
      */
     public function isStaticFile($sitePath, $siteName, $uri)
     {
-        if ($this->isActualFile($staticFilePath = $sitePath . '/web' . $uri)) {
+        $frontControllerDirectory = $this->frontControllerDirectory($sitePath);
+
+        if ($this->isActualFile($staticFilePath = $sitePath . '/' . $frontControllerDirectory . $uri)) {
             return $staticFilePath;
         }
 
@@ -34,25 +45,25 @@ class ContaoValetDriver extends ValetDriver
 
     /**
      * Get the fully resolved path to the application's front controller.
-     *
-     * @param string $sitePath
-     * @param string $siteName
-     * @param string $uri
-     * @return string
      */
     public function frontControllerPath($sitePath, $siteName, $uri)
     {
-        if ($uri === '/install.php') {
-            return $sitePath . '/web/install.php';
+        $frontControllerDirectory = $this->frontControllerDirectory($sitePath);
+
+        if (strncmp($uri, '/contao-manager.phar.php', 24) === 0) {
+            $_SERVER['SCRIPT_NAME'] = '/contao-manager.phar.php';
+            $_SERVER['SCRIPT_FILENAME'] = $sitePath . '/contao-manager.phar.php';
+
+            return $sitePath . '/' . $frontControllerDirectory . '/contao-manager.phar.php';
         }
 
-        if (0 === strncmp($uri, '/app_dev.php', 12)) {
-            $_SERVER['SCRIPT_NAME'] = '/app_dev.php';
-            $_SERVER['SCRIPT_FILENAME'] = $sitePath . '/app_dev.php';
+        if (strncmp($uri, '/preview.php', 12) === 0) {
+            $_SERVER['SCRIPT_NAME'] = '/preview.php';
+            $_SERVER['SCRIPT_FILENAME'] = $sitePath . '/preview.php';
 
-            return $sitePath . '/web/app_dev.php';
+            return $sitePath . '/' . $frontControllerDirectory . '/preview.php';
         }
 
-        return $sitePath . '/web/app.php';
+        return $sitePath . '/' . $frontControllerDirectory . '/index.php';
     }
 }
