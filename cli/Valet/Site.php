@@ -2,8 +2,11 @@
 
 namespace Valet;
 
+use Composer\Semver\Semver;
+use DateTime;
 use DomainException;
-
+use UnexpectedValueException;
+use Valet\Contracts\PackageManager;
 
 class Site
 {
@@ -380,11 +383,56 @@ class Site
      * @param string $name
      * @return void
      */
-    public function unlink($name)
+    public function unlink($name = null)
     {
+        $name = $this->getSiteLinkName($name);
+
         if ($this->files->exists($path = $this->sitesPath() . '/' . $name)) {
             $this->files->unlink($path);
         }
+
+        return $name;
+    }
+
+    /**
+     * Get the name of the site, defaulting to the link of the current directory.
+     *
+     * @param string|null $name
+     * @return string
+     */
+    private function getSiteLinkName($name)
+    {
+        if (!is_null($name)) {
+            return $name;
+        }
+
+        if (is_string($link = $this->getLinkNameByCurrentDir())) {
+            return $link;
+        }
+
+        throw new DomainException(basename(getcwd()) . ' is not linked.');
+    }
+
+    /**
+     * Get link name based on the current directory.
+     *
+     * @return string|null
+     */
+    private function getLinkNameByCurrentDir()
+    {
+        $links = $this->links()->filter(function ($link) {
+            return $link['path'] === getcwd();
+        });
+
+        if (($count = count($links)) === 1) {
+            return $links->first()['site'];
+        }
+
+        if ($count > 1) {
+            throw new DomainException("There are {$count} links related to the current directory, please specify the name: valet unlink <name>.");
+        }
+
+        return null;
     }
 
     /**
@@ -456,9 +504,78 @@ class Site
     public function secured()
     {
         return collect($this->files->scandir($this->certificatesPath()))
-            ->map(function ($file) {
+            ->filter(function ($file) {
+                return ends_with($file, ['.key', '.csr', '.crt', '.conf']);
+            })->map(function ($file) {
                 return str_replace(['.key', '.csr', '.crt', '.conf'], '', $file);
             })->unique()->values();
+    }
+
+    /**
+     * Get all of the URLs with expiration dates that are currently secured.
+     *
+     * @param bool $ca Include the Certificate Authority
+     * @return array
+     */
+    public function securedWithDates($ca = false)
+    {
+        $sites = $this->secured()->map(function ($site) {
+            return [
+                'site' => $site,
+                'exp' => $this->certificateExpiration($this->certificatesPath() . '/' . $site . '.crt'),
+            ];
+        })->values();
+
+        if ($ca) {
+            $sites->prepend([
+                'site' => 'Certificate Authority',
+                'exp' => $this->certificateExpiration($this->caPath() . '/LaravelValetCASelfSigned.pem'),
+            ]);
+        }
+
+        return $sites->all();
+    }
+
+    /**
+     * Read the expiration date of a certificate file.
+     *
+     * @param string $path
+     * @return DateTime
+     */
+    private function certificateExpiration($path)
+    {
+        $expiration = $this->cli->run('openssl x509 -enddate -noout -in ' . escapeshellarg($path));
+
+        return new DateTime(trim(str_replace('notAfter=', '', $expiration)));
+    }
+
+    /**
+     * Determine if the given site (without domain) is secured.
+     *
+     * @param string $site
+     * @return bool
+     */
+    public function isSecured($site)
+    {
+        return $this->secured()->contains($site . '.' . $this->config->read()['domain']);
+    }
+
+    /**
+     * Make the domain name from the given site name, or the current directory.
+     *
+     * @param string|null $domain
+     * @return string
+     */
+    public function domain($domain = null)
+    {
+        $tld = $this->config->read()['domain'];
+
+        // Don't add the TLD if it was already passed in
+        if ($domain && ends_with(rtrim($domain, '/'), '.' . $tld)) {
+            return rtrim($domain, '/');
+        }
+
+        return rtrim($domain ?: $this->host(getcwd()), '/') . '.' . $tld;
     }
 
     /**
@@ -468,31 +585,66 @@ class Site
      * @param string $siteConf pregenerated Nginx config file contents
      * @return void
      */
-    public function secure($url, $siteConf = null)
+    public function secure($url, $siteConf = null, $certificateExpireInDays = 396, $caExpireInYears = 20)
     {
+        // Extract in order to later preserve custom PHP version config when securing
+        $phpVersion = $this->customPhpVersion($url);
+
         $this->unsecure($url);
 
         $this->files->ensureDirExists($this->caPath(), user());
 
         $this->files->ensureDirExists($this->certificatesPath(), user());
 
-        $this->createCa();
+        $caExpireInDays = (new DateTime)->diff(new DateTime("+{$caExpireInYears} years"))->format('%a');
+        $this->createCa($caExpireInDays);
 
-        $this->createCertificate($url);
+        $this->createCertificate($url, $certificateExpireInDays);
 
-        $this->createSecureNginxServer($url);
+        $siteConf = $this->buildSecureNginxServer($url, $siteConf);
 
-        $this->files->putAsUser(
-            $this->nginxPath($url), $this->buildSecureNginxServer($url, $siteConf)
-        );
+        // If the user had isolated the PHP version for this site, swap out .sock file
+        if ($phpVersion) {
+            $siteConf = $this->replaceSockFile($siteConf, $phpVersion);
+        }
+
+        $this->files->putAsUser($this->nginxPath($url), $siteConf);
     }
 
     /**
-     * If CA and root certificates are nonexistent, create them and trust the root cert.
+     * Renew all domains with a trusted TLS certificate.
      *
+     * @param int  $expireIn Days the certificates are valid
+     * @param bool $ca       Renew the Certificate Authority first
      * @return void
      */
-    public function createCa()
+    public function renew($expireIn = 368, $ca = false)
+    {
+        if ($ca) {
+            $this->removeCa();
+        }
+
+        collect($this->securedWithDates())->each(function ($row) use ($expireIn) {
+            // Proxies carry their own Nginx config, so keep it as it is
+            $siteConf = null;
+
+            if ($this->getProxyHostForSite($row['site'], null)) {
+                $siteConf = $this->getSiteConfigFileContents($row['site']);
+            }
+
+            $this->secure($row['site'], $siteConf, $expireIn);
+
+            info('The [' . $row['site'] . '] site has been secured with a fresh TLS certificate.');
+        });
+    }
+
+    /**
+     * If CA and root certificates are nonexistent, create them.
+     *
+     * @param int $caExpireInDays The number of days the certificate authority is valid.
+     * @return void
+     */
+    public function createCa($caExpireInDays = 7300)
     {
         $caPemPath = $this->caPath() . '/LaravelValetCASelfSigned.pem';
         $caKeyPath = $this->caPath() . '/LaravelValetCASelfSigned.key';
@@ -507,23 +659,53 @@ class Site
         if ($this->files->exists($caPemPath)) {
             $this->files->unlink($caPemPath);
         }
-        $this->cli->runAsUser(sprintf(
-            'openssl req -new -newkey rsa:2048 -days 730 -nodes -x509 -subj "/O=%s/commonName=%s/organizationalUnitName=Developers/emailAddress=%s/" -keyout "%s" -out "%s"',
+
+        $command = sprintf(
+            'openssl req -new -newkey rsa:2048 -days %s -nodes -x509 -subj "/O=%s/commonName=%s/organizationalUnitName=Developers/emailAddress=%s/" -keyout "%s" -out "%s"',
+            (int) $caExpireInDays,
             $oName,
             $cName,
             'rootcertificate@laravel.valet',
             $caKeyPath,
             $caPemPath
-        ));
+        );
+
+        // Strict-mode compliant CA extensions need OpenSSL >= 1.1.1 (-addext);
+        // fall back to the plain command on older distributions.
+        $this->cli->runAsUser(
+            $command . ' -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,digitalSignature,keyCertSign" -addext "subjectKeyIdentifier=hash"',
+            function () use ($command, $caKeyPath, $caPemPath) {
+                $this->files->unlink($caKeyPath);
+                $this->files->unlink($caPemPath);
+                $this->cli->runAsUser($command);
+            }
+        );
+    }
+
+    /**
+     * If CA and root certificates exist, remove them.
+     *
+     * @return void
+     */
+    public function removeCa()
+    {
+        foreach (['pem', 'key', 'srl'] as $ending) {
+            $path = $this->caPath() . '/LaravelValetCASelfSigned.' . $ending;
+
+            if ($this->files->exists($path)) {
+                $this->files->unlink($path);
+            }
+        }
     }
 
     /**
      * Create and trust a certificate for the given URL.
      *
      * @param string $url
+     * @param int $certificateExpireInDays The number of days the certificate is valid.
      * @return void
      */
-    public function createCertificate($url)
+    public function createCertificate($url, $certificateExpireInDays = 396)
     {
         $caPemPath = $this->caPath() . '/LaravelValetCASelfSigned.pem';
         $caKeyPath = $this->caPath() . '/LaravelValetCASelfSigned.key';
@@ -537,18 +719,20 @@ class Site
         $this->createPrivateKey($keyPath);
         $this->createSigningRequest($url, $keyPath, $csrPath, $confPath);
 
-        $caSrlParam = ' -CAcreateserial';
-        if ($this->files->exists($caSrlPath)) {
-            $caSrlParam = ' -CAserial ' . $caSrlPath;
+        $caSrlParam = '-CAserial ' . escapeshellarg($caSrlPath);
+        if (!$this->files->exists($caSrlPath)) {
+            $caSrlParam .= ' -CAcreateserial';
         }
+
         $this->cli->runAsUser(sprintf(
-            'openssl x509 -req -sha256 -days 365 -CA "%s" -CAkey "%s"%s -in "%s" -out "%s" -extensions v3_req -extfile "%s"',
-            $caPemPath,
-            $caKeyPath,
+            'openssl x509 -req -sha256 -days %s -CA %s -CAkey %s %s -in %s -out %s -extensions v3_req -extfile %s',
+            (int) $certificateExpireInDays,
+            escapeshellarg($caPemPath),
+            escapeshellarg($caKeyPath),
             $caSrlParam,
-            $csrPath,
-            $crtPath,
-            $confPath
+            escapeshellarg($csrPath),
+            escapeshellarg($crtPath),
+            escapeshellarg($confPath)
         ));
 
         $this->trustCertificate($crtPath, $url);
@@ -562,7 +746,7 @@ class Site
      */
     public function createPrivateKey($keyPath)
     {
-        $this->cli->runAsUser(sprintf('openssl genrsa -out %s 2048', $keyPath));
+        $this->cli->runAsUser(sprintf('openssl genrsa -out %s 2048', escapeshellarg($keyPath)));
     }
 
     /**
@@ -574,11 +758,11 @@ class Site
     public function createSigningRequest($url, $keyPath, $csrPath, $confPath)
     {
         $this->cli->runAsUser(sprintf(
-            'openssl req -new -key %s -out %s -subj "/C=US/ST=MN/O=Valet/localityName=Valet/commonName=%s/organizationalUnitName=Valet/emailAddress=valet/" -config %s -passin pass:',
-            $keyPath,
-            $csrPath,
-            $url,
-            $confPath
+            'openssl req -new -key %s -out %s -subj %s -config %s -passin pass:',
+            escapeshellarg($keyPath),
+            escapeshellarg($csrPath),
+            escapeshellarg('/C=US/ST=MN/O=Valet/localityName=Valet/commonName=' . $url . '/organizationalUnitName=Valet/emailAddress=valet/'),
+            escapeshellarg($confPath)
         ));
     }
 
@@ -603,16 +787,17 @@ class Site
     public function trustCertificate($crtPath, $url)
     {
         $this->cli->run(sprintf(
-            'certutil -d sql:$HOME/.pki/nssdb -A -t TC -n "%s" -i "%s"',
-            $url,
-            $crtPath
+            'certutil -d sql:$HOME/.pki/nssdb -A -t TC -n %s -i %s',
+            escapeshellarg($url),
+            escapeshellarg($crtPath)
         ));
 
         foreach ($this->getFirefoxProfilePath() as $path) {
             $this->cli->run(sprintf(
-                'certutil -d ' . $path . ' -A -t TC -n "%s" -i "%s"',
-                $url,
-                $crtPath
+                'certutil -d %s -A -t TC -n %s -i %s',
+                escapeshellarg($path),
+                escapeshellarg($url),
+                escapeshellarg($crtPath)
             ));
         }
     }
@@ -683,7 +868,11 @@ class Site
      */
     public function unsecure($url)
     {
-        if ($this->files->exists($this->certificatesPath() . '/' . $url . '.crt')) {
+        // Extract in order to later preserve custom PHP version config when unsecuring
+        $phpVersion = $this->customPhpVersion($url);
+        $wasSecured = $this->files->exists($this->certificatesPath() . '/' . $url . '.crt');
+
+        if ($wasSecured) {
             $this->files->unlink(VALET_HOME_PATH . '/Nginx/' . $url);
 
             $this->files->unlink($this->certificatesPath() . '/' . $url . '.conf');
@@ -691,14 +880,60 @@ class Site
             $this->files->unlink($this->certificatesPath() . '/' . $url . '.csr');
             $this->files->unlink($this->certificatesPath() . '/' . $url . '.crt');
 
-            $this->cli->run(sprintf('certutil -d sql:$HOME/.pki/nssdb -D -n "%s"', $url));
+            $this->cli->run(sprintf('certutil -d sql:$HOME/.pki/nssdb -D -n %s', escapeshellarg($url)));
             foreach ($this->getFirefoxProfilePath() as $path) {
                 $this->cli->run(sprintf(
-                    'certutil -d ' . $path . ' -D -n "%s"',
-                    $url
+                    'certutil -d %s -D -n %s',
+                    escapeshellarg($path),
+                    escapeshellarg($url)
                 ));
             }
+
+            // If the user had isolated the PHP version for this site, keep the isolation
+            if ($phpVersion) {
+                $this->isolate($url, $phpVersion);
+            }
         }
+    }
+
+    /**
+     * Un-secure all sites.
+     *
+     * @return void
+     */
+    public function unsecureAll()
+    {
+        $domain = $this->config->read()['domain'];
+
+        $secured = $this->parked()->merge($this->links())->where('secured', ' X');
+
+        if ($secured->count() === 0) {
+            info('No sites to unsecure. You may list all servable sites or links by running valet parked or valet links.');
+
+            return;
+        }
+
+        info('Attempting to unsecure the following sites:');
+        table(['Site', 'SSL', 'URL', 'Path'], $secured->map(function ($site) {
+            return [$site['site'], $site['secured'], $site['url'], $site['path']];
+        })->values()->all());
+
+        foreach ($secured->pluck('site') as $site) {
+            $this->unsecure($site . '.' . $domain);
+        }
+
+        $remaining = $this->parked()->merge($this->links())->where('secured', ' X');
+
+        if ($remaining->count() > 0) {
+            warning('We were not successful in unsecuring the following sites:');
+            table(['Site', 'SSL', 'URL', 'Path'], $remaining->map(function ($site) {
+                return [$site['site'], $site['secured'], $site['url'], $site['path']];
+            })->values()->all());
+
+            return;
+        }
+
+        info('unsecure --all was successful.');
     }
 
     /**
@@ -940,19 +1175,126 @@ class Site
     }
 
     /**
-     * Get PHP version from .valetphprc for a site.
+     * Get the path of a site's directory from its name, or the given working directory.
      *
-     * @param string $site
+     * @param string      $siteName
+     * @param string|null $cwd
      * @return string|null
      */
-    public function phpRcVersion($site)
+    private function sitePathFor($siteName, $cwd = null)
     {
-        if ($site = $this->parked()->merge($this->links())->where('site', $site)->first()) {
-            $path = data_get($site, 'path') . '/.valetphprc';
+        if ($cwd) {
+            return $cwd;
+        }
 
-            if ($this->files->exists($path)) {
-                return PhpFpm::normalizePhpVersion(trim($this->files->get($path)));
+        if ($site = $this->parked()->merge($this->links())->where('site', $siteName)->first()) {
+            return data_get($site, 'path');
+        }
+
+        return null;
+    }
+
+    /**
+     * Get configuration items defined in .valetrc for a site.
+     *
+     * @param string      $siteName
+     * @param string|null $cwd
+     * @return array
+     */
+    public function valetRc($siteName, $cwd = null)
+    {
+        if (!$sitePath = $this->sitePathFor($siteName, $cwd)) {
+            return [];
+        }
+
+        $path = $sitePath . '/.valetrc';
+
+        if (!$this->files->exists($path)) {
+            return [];
+        }
+
+        return collect(preg_split('/\R/', trim($this->files->get($path))))->filter(function ($line) {
+            return strpos($line, '=') !== false;
+        })->mapWithKeys(function ($line) {
+            list($key, $value) = explode('=', $line, 2);
+
+            return [strtolower(trim($key)) => trim($value)];
+        })->all();
+    }
+
+    /**
+     * Get PHP version from .valetrc or .valetphprc for a site.
+     *
+     * @param string      $siteName
+     * @param string|null $cwd
+     * @return string|null
+     */
+    public function phpRcVersion($siteName, $cwd = null)
+    {
+        if (!$sitePath = $this->sitePathFor($siteName, $cwd)) {
+            return null;
+        }
+
+        $oldPath = $sitePath . '/.valetphprc';
+
+        if ($this->files->exists($oldPath)) {
+            return PhpFpm::normalizePhpVersion(trim($this->files->get($oldPath)));
+        }
+
+        $version = data_get($this->valetRc($siteName, $cwd), 'php');
+
+        return $version ? PhpFpm::normalizePhpVersion($version) : null;
+    }
+
+    /**
+     * Get a PHP version that satisfies the constraint of a site's composer.json.
+     *
+     * @param string      $siteName
+     * @param string|null $cwd
+     * @return string|null
+     */
+    public function phpComposerVersion($siteName, $cwd = null)
+    {
+        if (!$sitePath = $this->sitePathFor($siteName, $cwd)) {
+            return null;
+        }
+
+        $path = $sitePath . '/composer.json';
+
+        if (!$this->files->exists($path)) {
+            return null;
+        }
+
+        $composer = json_decode($this->files->get($path), true);
+        $constraint = data_get($composer, 'require.php', data_get($composer, 'require.php-64bit', data_get($composer, 'config.platform.php')));
+
+        if (empty($constraint) || !is_string($constraint)) {
+            return null;
+        }
+
+        try {
+            // Prefer the version already used by Valet, so we never raise it needlessly
+            $current = PhpFpm::normalizePhpVersion(PHP_VERSION);
+
+            if (Semver::satisfies(PHP_VERSION, $constraint)) {
+                return $current;
             }
+
+            // Otherwise pick the lowest supported version satisfying the constraint
+            $candidates = resolve(PackageManager::class)->supportedPhpVersions()
+                ->filter(function ($version) {
+                    return preg_match('/\d/', $version);
+                })->map(function ($version) {
+                    return PhpFpm::normalizePhpVersion($version);
+                })->unique()->sort()->values();
+
+            $version = $candidates->first(function ($version) use ($constraint) {
+                return Semver::satisfies($version . '.0', $constraint);
+            });
+
+            return $version ?: null;
+        } catch (UnexpectedValueException $e) {
+            return null;
         }
     }
 }

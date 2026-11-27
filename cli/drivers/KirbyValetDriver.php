@@ -4,11 +4,6 @@ class KirbyValetDriver extends ValetDriver
 {
     /**
      * Determine if the driver serves the request.
-     *
-     * @param string $sitePath
-     * @param string $siteName
-     * @param string $uri
-     * @return void
      */
     public function serves($sitePath, $siteName, $uri)
     {
@@ -17,15 +12,12 @@ class KirbyValetDriver extends ValetDriver
 
     /**
      * Determine if the incoming request is for a static file.
-     *
-     * @param string $sitePath
-     * @param string $siteName
-     * @param string $uri
-     * @return string|false
      */
     public function isStaticFile($sitePath, $siteName, $uri)
     {
         if ($this->isActualFile($staticFilePath = $sitePath . $uri)) {
+            return $staticFilePath;
+        } elseif ($this->isActualFile($staticFilePath = $sitePath . '/public' . $uri)) {
             return $staticFilePath;
         }
 
@@ -34,27 +26,41 @@ class KirbyValetDriver extends ValetDriver
 
     /**
      * Get the fully resolved path to the application's front controller.
-     *
-     * @param string $sitePath
-     * @param string $siteName
-     * @param string $uri
-     * @return string
      */
     public function frontControllerPath($sitePath, $siteName, $uri)
     {
-        // Needed to force Kirby to use *.test to generate its URLs...
+        $scriptName = '/index.php';
+
+        if ($this->isActualFile($sitePath . '/index.php')) {
+            $indexPath = $sitePath . '/index.php';
+        }
+
+        if ($isAboveWebroot = $this->isActualFile($sitePath . '/public/index.php')) {
+            $indexPath = $sitePath . '/public/index.php';
+        }
+
+        if (preg_match('/^\/panel/', $uri) && $this->isActualFile($sitePath . '/panel/index.php')) {
+            $scriptName = '/panel/index.php';
+            $indexPath = $sitePath . '/panel/index.php';
+        }
+
+        // add this block
+        if (preg_match('/^\/(?!(kirby|site|content)\/).+\.php$/', $uri)) {
+            if (
+                $this->isActualFile($sitePath . $uri) ||
+                $isAboveWebroot && $this->isActualFile($sitePath . '/public' . $uri)
+            ) {
+                $scriptName = $uri;
+                $indexPath = $sitePath . $scriptName;
+            }
+        }
+
+        $sitePathPrefix = ($isAboveWebroot) ? $sitePath . '/public' : $sitePath;
+
         $_SERVER['SERVER_NAME'] = $_SERVER['HTTP_HOST'];
+        $_SERVER['SCRIPT_NAME'] = $scriptName;
+        $_SERVER['SCRIPT_FILENAME'] = $sitePathPrefix . $scriptName;
 
-        if (preg_match('/^\/panel/', $uri) && file_exists($sitePath . '/panel/index.php')) {
-            $_SERVER['SCRIPT_NAME'] = '/panel/index.php';
-
-            return $sitePath . '/panel/index.php';
-        }
-
-        if (file_exists($indexPath = $sitePath . '/index.php')) {
-            $_SERVER['SCRIPT_NAME'] = '/index.php';
-
-            return $indexPath;
-        }
+        return $indexPath;
     }
 }

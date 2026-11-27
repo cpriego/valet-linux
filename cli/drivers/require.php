@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/ValetDriver.php';
 require_once __DIR__ . '/BasicValetDriver.php';
+require_once __DIR__ . '/BasicWithPublicValetDriver.php';
 
 /**
  * Specific drivers...
@@ -16,6 +17,7 @@ require_once __DIR__ . '/LaravelValetDriver.php';
 require_once __DIR__ . '/SculpinValetDriver.php';
 require_once __DIR__ . '/StatamicValetDriver.php';
 require_once __DIR__ . '/StatamicV1ValetDriver.php';
+require_once __DIR__ . '/StatamicV2ValetDriver.php';
 require_once __DIR__ . '/SymfonyValetDriver.php';
 require_once __DIR__ . '/WordPressValetDriver.php';
 require_once __DIR__ . '/BedrockValetDriver.php';
@@ -29,3 +31,5 @@ require_once __DIR__ . '/Concrete5ValetDriver.php';
 require_once __DIR__ . '/Typo3ValetDriver.php';
 require_once __DIR__ . '/NeosValetDriver.php';
 require_once __DIR__ . '/Magento2ValetDriver.php';
+require_once __DIR__ . '/NetteValetDriver.php';
+require_once __DIR__ . '/RadicleValetDriver.php';
